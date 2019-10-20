@@ -27,7 +27,7 @@ class MainShaderBuilder : ShaderElement {
 
 class ShaderBuilder : ShaderElement {
     companion object {
-        private const val USED_VERSION ="#version 330 core"
+        private const val USED_VERSION ="#version 450 core"
     }
 
     private val output = StringBuilder().apply { appendln(USED_VERSION) }

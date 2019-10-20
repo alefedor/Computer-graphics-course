@@ -63,6 +63,7 @@ private class MandelbrotSet {
         uniform("vec2", "window_size")
         uniform("sampler1D", "colorTexture")
         uniform("int", "texture_width")
+        out("vec4", "frag_color")
 
         + """
             int mandelbrot_iterations(vec2 c) {
@@ -84,7 +85,7 @@ private class MandelbrotSet {
                 int needed_iterations = mandelbrot_iterations(point);
                 float texture_position = needed_iterations / float(iterations);
                 texture_position = 0.5 / texture_width + texture_position * (1 - 1.0 / texture_width);
-                gl_FragColor = texture(colorTexture, texture_position);
+                frag_color = texture(colorTexture, texture_position);
             """.trimIndent()
         }
     }
@@ -295,7 +296,7 @@ fun initWindow(title: String): GlfwWindow {
     with(glfw) {
         init()
         windowHint {
-            context.version = "3.3"
+            context.version = "4.5"
             profile = "core"
             forwardComp = true
         }
