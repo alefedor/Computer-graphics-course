@@ -82,14 +82,10 @@ private class ModelDrawing {
     init {
         glGenTextures(dissolveTexture)
         glBindTexture(GL_TEXTURE_2D, dissolveTexture)
-        //  set the texture wrapping parameters to GL_REPEAT (default wrapping method)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
-        // set texture filtering parameters
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-
-        // load image, create texture and generate mipmaps
         val image = readImage("textures/random-noise.png")
         glTexImage2D(GL_RGB, image.width, image.height, GL_LUMINANCE, GL_UNSIGNED_BYTE, image.toBuffer())
         glGenerateMipmap(GL_TEXTURE_2D)
