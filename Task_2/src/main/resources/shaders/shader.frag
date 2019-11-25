@@ -1,8 +1,6 @@
 #version 450 core
 
-#define FRAG_COLOR    0
-
-layout (location = FRAG_COLOR) out vec4 FragColor;
+layout (location = 0) out vec4 FragColor;
 
 in vec3 FragPos;
 in vec3 Normal;
@@ -22,8 +20,15 @@ uniform float dissolve;
 
 void main()
 {
-    vec3 dissolveColor = texture(texture_dissolve, TexCoords).rgb;
+    vec2 texCoords = TexCoords;
+    if (FragPos[0] * FragPos[1] * FragPos[2] < 0) texCoords[0] = 1 - texCoords[0];
+    vec3 dissolveColor = texture(texture_dissolve, texCoords).rgb;
     if ((dissolveColor[0] + dissolveColor[1] + dissolveColor[2]) / 3.0f < dissolve) discard;
+    float threshold = 0.05f;
+    if ((dissolveColor[0] + dissolveColor[1] + dissolveColor[2]) / 3.0f < dissolve + threshold && dissolve != 0.0f) {
+        FragColor = vec4(0.74f, 0.0f, 0.15f, 1.0f);
+        return;
+    }
 
     vec3 texture_diffuse_color = texture(texture_diffuse, TexCoords).rgb;
 
@@ -44,6 +49,5 @@ void main()
     vec3 specularColor = specular * spec * texture(texture_specular, TexCoords).rgb;
 
     vec3 result = ambientColor + diffuseColor + specularColor;
-
     FragColor = vec4(result, 1.0f);
 }
