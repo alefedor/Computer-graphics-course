@@ -20,9 +20,7 @@ uniform float dissolve;
 
 void main()
 {
-    vec2 texCoords = TexCoords;
-    if (FragPos[0] * FragPos[1] * FragPos[2] < 0) texCoords[0] = 1 - texCoords[0];
-    vec3 dissolveColor = texture(texture_dissolve, texCoords).rgb;
+    vec3 dissolveColor = texture(texture_dissolve, TexCoords).rgb;
     if ((dissolveColor[0] + dissolveColor[1] + dissolveColor[2]) / 3.0f < dissolve) discard;
     float threshold = 0.05f;
     if ((dissolveColor[0] + dissolveColor[1] + dissolveColor[2]) / 3.0f < dissolve + threshold && dissolve != 0.0f) {
