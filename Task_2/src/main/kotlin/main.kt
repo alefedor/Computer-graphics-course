@@ -32,9 +32,10 @@ import util.Model
 import kotlin.math.*
 import gln.texture.glBindTexture
 import org.lwjgl.opengl.ARBFramebufferObject.glGenerateMipmap
+import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL12.GL_BGR
-import org.lwjgl.opengl.GL12.GL_BGRA
 import org.lwjgl.opengl.GL13.*
+import org.lwjgl.opengl.GL30
 import uno.buffer.toBuf
 import java.awt.image.BufferedImage
 import java.awt.image.DataBufferByte
@@ -52,7 +53,8 @@ val windowSize = Vec2i(1280, 720)
 val clearColor = Vec4(208 / 255f, 209 / 255f, 230 / 255f, 1f)
 
 private class ModelDrawing {
-    val window = initWindow("Model 3D")
+    val window: GlfwWindow = initWindow("Model 3D")
+
     val program = ModelDrawingProgram()
 
     var yaw = -90f
@@ -80,66 +82,79 @@ private class ModelDrawing {
     private var dissolve = 0.0f
 
     init {
-        glGenTextures(dissolveTexture)
-        glBindTexture(GL_TEXTURE_2D, dissolveTexture)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-        val image = readImage("textures/random-noise.png")
-        glTexImage2D(GL_RGB, image.width, image.height, GL_LUMINANCE, GL_UNSIGNED_BYTE, image.toBuffer())
-        glGenerateMipmap(GL_TEXTURE_2D)
+        checkError("0")
 
-        LwjglGL3.init(window, true)
-    }
-
-    fun run() {
         with(window) {
-            cursorPosCallback = { pos ->
-                if (inDrag) {
-                    val offset = Vec2d(
-                        pos.x - dragPosition.x,
-                        dragPosition.y - pos.y
-                    )
-                    dragPosition = pos
-                    offset *= 0.2f
-                    yaw += offset.x.f
-                    pitch += offset.y.f
-                    pitch = glm.clamp(pitch, -85f, 85f)
-                    val front = Vec3(
-                        cos(yaw.rad) * cos(pitch.rad),
-                        sin(pitch.rad),
-                        sin(yaw.rad) * cos(pitch.rad)
-                    )
-                    cameraFront = front.normalizeAssign()
+            apply {
+                cursorPosCallback = { pos ->
+                    if (inDrag) {
+                        val offset = Vec2d(
+                            pos.x - dragPosition.x,
+                            dragPosition.y - pos.y
+                        )
+                        dragPosition = pos
+                        offset *= 0.2f
+                        yaw += offset.x.f
+                        pitch += offset.y.f
+                        pitch = glm.clamp(pitch, -85f, 85f)
+                        val front = Vec3(
+                            cos(yaw.rad) * cos(pitch.rad),
+                            sin(pitch.rad),
+                            sin(yaw.rad) * cos(pitch.rad)
+                        )
+                        cameraFront = front.normalizeAssign()
+                    }
                 }
-            }
-            scrollCallback = { offset ->
-                fov -= offset.y.f
-                fov = glm.clamp(fov, 2f, 70f)
-            }
+                scrollCallback = { offset ->
+                    fov -= offset.y.f
+                    fov = glm.clamp(fov, 2f, 70f)
+                }
 
-            mouseButtonCallback = { button, action, _ ->
-                if (button == GLFW_MOUSE_BUTTON_LEFT && !inChildWindow(window.cursorPos)) {
-                    when (action) {
-                        GLFW_PRESS -> {
-                            if (!inDrag) {
-                                inDrag = true
-                                dragPosition = Vec2d(window.cursorPos)
+                mouseButtonCallback = { button, action, _ ->
+                    if (button == GLFW_MOUSE_BUTTON_LEFT && !inChildWindow(window.cursorPos)) {
+                        when (action) {
+                            GLFW_PRESS -> {
+                                if (!inDrag) {
+                                    inDrag = true
+                                    dragPosition = Vec2d(window.cursorPos)
+                                }
                             }
+                            GLFW_RELEASE -> inDrag = false
                         }
-                        GLFW_RELEASE -> inDrag = false
                     }
                 }
             }
         }
+
+        checkError("1")
+        glGenTextures(dissolveTexture)
+        checkError("2")
+        val image = readImage("textures/random-noise.png")
+        checkError("3")
+        glBindTexture(GL_TEXTURE_2D, dissolveTexture)
+        checkError("4")
+        glTexImage2D(GL_RGB, image.width, image.height, GL_LUMINANCE, GL_UNSIGNED_BYTE, image.toBuffer())
+        checkError("5")
+        glGenerateMipmap(GL_TEXTURE_2D)
+        checkError("6")
+        LwjglGL3.init(window, false)
+        checkError("7")
+    }
+
+    fun run() {
+        checkError("8")
+
         glEnable(GL_DEPTH_TEST)
 
+        checkError("9")
 
         while (window.open) {
+            checkError("10")
             window.processInput()
 
+            checkError("11")
             LwjglGL3.newFrame()
+            checkError("12")
 
             with(ImGui) {
                 setNextWindowPos(Vec2(10))
@@ -153,19 +168,21 @@ private class ModelDrawing {
                             it.x < child.pos.x + child.size.x && it.y < child.pos.y + child.size.y
                 }
             }
-
+            checkError("13")
             glClearColor(clearColor)
             glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
-
+            checkError("14")
             glActiveTexture(GL_TEXTURE2)
+            checkError("15")
             glBindTexture(GL_TEXTURE_2D, dissolveTexture)
-
+            checkError("16")
             glUseProgram(program)
-
+            checkError("17")
             glm.perspective(fov.rad, window.aspect, 0.1f, 100f) to program.projection
+            checkError("18")
             glm.lookAt(-cameraFront, Vec3(), cameraUp) to program.view
             (-cameraFront) to program.cameraPosition
-
+            checkError("19")
             val modelMatrix = Mat4()
                 .translate(0f, -0.5f, 0f)
                 .scale(0.2f)
@@ -180,11 +197,13 @@ private class ModelDrawing {
 
             dissolve to program.dissolve
 
+            checkError("20")
             model.draw()
-
+            checkError("21")
             ImGui.render()
             window.swapBuffers()
             glfw.pollEvents()
+            checkError("22")
         }
     }
 
@@ -215,6 +234,26 @@ private class ModelDrawing {
                 "texture_specular".unit = semantic.sampler.SPECULAR
                 "texture_dissolve".unit = 2
             }
+            checkError("23")
+        }
+    }
+
+    companion object {
+        fun checkError(location: String) {
+            val error = GL11.glGetError()
+            if (error != GL11.GL_NO_ERROR) {
+                val errorString = when (error) {
+                    GL11.GL_INVALID_ENUM -> "GL_INVALID_ENUM"
+                    GL11.GL_INVALID_VALUE -> "GL_INVALID_VALUE"
+                    GL11.GL_INVALID_OPERATION -> "GL_INVALID_OPERATION"
+                    GL30.GL_INVALID_FRAMEBUFFER_OPERATION -> "GL_INVALID_FRAMEBUFFER_OPERATION"
+                    GL11.GL_OUT_OF_MEMORY -> "GL_OUT_OF_MEMORY"
+                    GL11.GL_STACK_UNDERFLOW -> "GL_STACK_UNDERFLOW"
+                    GL11.GL_STACK_OVERFLOW -> "GL_STACK_OVERFLOW"
+                    else -> throw IllegalStateException()
+                }
+                throw Error("OpenGL Error ($errorString) at $location")
+            }
         }
     }
 }
@@ -225,6 +264,7 @@ fun initWindow(title: String): GlfwWindow {
         windowHint {
             context.version = "4.5"
             profile = "core"
+            forwardComp = true
         }
     }
     return GlfwWindow(windowSize, title).apply {
@@ -232,7 +272,7 @@ fun initWindow(title: String): GlfwWindow {
         show()
         framebufferSizeCallback = { size -> glViewport(size) }
     }.also {
-        GL.createCapabilities()
+        GL.createCapabilities(true)
     }
 }
 
