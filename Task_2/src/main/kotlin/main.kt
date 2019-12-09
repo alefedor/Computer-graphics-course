@@ -215,7 +215,7 @@ private class ModelDrawing {
         glfw.terminate()
     }
 
-    private inner class ModelDrawingProgram : Program("shaders/", "shader.vert", "shader.frag") {
+    private inner class ModelDrawingProgram : Program("shaders/", "model.vert", "model.frag") {
 
         val model = glGetUniformLocation(name, "model")
         val view = glGetUniformLocation(name, "view")
