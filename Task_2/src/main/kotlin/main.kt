@@ -80,6 +80,8 @@ private class ModelDrawing {
     private var dissolve = 0.0f
 
     init {
+        GLUtil.setupDebugMessageCallback()
+
         with(window) {
             apply {
                 cursorPosCallback = { pos ->
@@ -121,8 +123,6 @@ private class ModelDrawing {
                 }
             }
         }
-
-        GLUtil.setupDebugMessageCallback()
 
         glGenTextures(dissolveTexture)
         val image = readImage("textures/random-noise.png")
@@ -186,6 +186,7 @@ private class ModelDrawing {
     fun end() {
         LwjglGL3.shutdown()
         glDeleteProgram(program)
+        glDeleteTextures(dissolveTexture)
         model.dispose()
         window.destroy()
         glfw.terminate()
