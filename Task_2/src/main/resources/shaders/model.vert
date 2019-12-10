@@ -1,4 +1,4 @@
-#version 450 core
+#version 330 core
 
 #define POSITION    0
 #define NORMAL      1

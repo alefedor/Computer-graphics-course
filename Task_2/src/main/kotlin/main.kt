@@ -3,7 +3,6 @@ import glm_.vec2.Vec2i
 import glm_.vec4.Vec4
 import gln.glClearColor
 import gln.glViewport
-import org.lwjgl.opengl.GL
 import org.lwjgl.opengl.GL11.*
 import uno.glfw.GlfwWindow
 import uno.glfw.glfw
@@ -31,11 +30,10 @@ import uno.glsl.glDeleteProgram
 import util.Model
 import kotlin.math.*
 import gln.texture.glBindTexture
+import org.lwjgl.opengl.*
+import org.lwjgl.opengl.ARBDebugOutput.*
 import org.lwjgl.opengl.ARBFramebufferObject.glGenerateMipmap
-import org.lwjgl.opengl.GL11
-import org.lwjgl.opengl.GL12.GL_BGR
 import org.lwjgl.opengl.GL13.*
-import org.lwjgl.opengl.GL30
 import uno.buffer.toBuf
 import java.awt.image.BufferedImage
 import java.awt.image.DataBufferByte
@@ -82,8 +80,6 @@ private class ModelDrawing {
     private var dissolve = 0.0f
 
     init {
-        checkError("0")
-
         with(window) {
             apply {
                 cursorPosCallback = { pos ->
@@ -126,35 +122,23 @@ private class ModelDrawing {
             }
         }
 
-        checkError("1")
+        GLUtil.setupDebugMessageCallback()
+
         glGenTextures(dissolveTexture)
-        checkError("2")
         val image = readImage("textures/random-noise.png")
-        checkError("3")
         glBindTexture(GL_TEXTURE_2D, dissolveTexture)
-        checkError("4")
         glTexImage2D(GL_RGB, image.width, image.height, GL_LUMINANCE, GL_UNSIGNED_BYTE, image.toBuffer())
-        checkError("5")
         glGenerateMipmap(GL_TEXTURE_2D)
-        checkError("6")
         LwjglGL3.init(window, false)
-        checkError("7")
     }
 
     fun run() {
-        checkError("8")
-
         glEnable(GL_DEPTH_TEST)
 
-        checkError("9")
-
         while (window.open) {
-            checkError("10")
             window.processInput()
 
-            checkError("11")
             LwjglGL3.newFrame()
-            checkError("12")
 
             with(ImGui) {
                 setNextWindowPos(Vec2(10))
@@ -168,21 +152,16 @@ private class ModelDrawing {
                             it.x < child.pos.x + child.size.x && it.y < child.pos.y + child.size.y
                 }
             }
-            checkError("13")
             glClearColor(clearColor)
             glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
-            checkError("14")
+
             glActiveTexture(GL_TEXTURE2)
-            checkError("15")
             glBindTexture(GL_TEXTURE_2D, dissolveTexture)
-            checkError("16")
+
             glUseProgram(program)
-            checkError("17")
             glm.perspective(fov.rad, window.aspect, 0.1f, 100f) to program.projection
-            checkError("18")
             glm.lookAt(-cameraFront, Vec3(), cameraUp) to program.view
             (-cameraFront) to program.cameraPosition
-            checkError("19")
             val modelMatrix = Mat4()
                 .translate(0f, -0.5f, 0f)
                 .scale(0.2f)
@@ -197,13 +176,10 @@ private class ModelDrawing {
 
             dissolve to program.dissolve
 
-            checkError("20")
             model.draw()
-            checkError("21")
             ImGui.render()
             window.swapBuffers()
             glfw.pollEvents()
-            checkError("22")
         }
     }
 
@@ -234,26 +210,6 @@ private class ModelDrawing {
                 "texture_specular".unit = semantic.sampler.SPECULAR
                 "texture_dissolve".unit = 2
             }
-            checkError("23")
-        }
-    }
-
-    companion object {
-        fun checkError(location: String) {
-            val error = GL11.glGetError()
-            if (error != GL11.GL_NO_ERROR) {
-                val errorString = when (error) {
-                    GL11.GL_INVALID_ENUM -> "GL_INVALID_ENUM"
-                    GL11.GL_INVALID_VALUE -> "GL_INVALID_VALUE"
-                    GL11.GL_INVALID_OPERATION -> "GL_INVALID_OPERATION"
-                    GL30.GL_INVALID_FRAMEBUFFER_OPERATION -> "GL_INVALID_FRAMEBUFFER_OPERATION"
-                    GL11.GL_OUT_OF_MEMORY -> "GL_OUT_OF_MEMORY"
-                    GL11.GL_STACK_UNDERFLOW -> "GL_STACK_UNDERFLOW"
-                    GL11.GL_STACK_OVERFLOW -> "GL_STACK_OVERFLOW"
-                    else -> throw IllegalStateException()
-                }
-                throw Error("OpenGL Error ($errorString) at $location")
-            }
         }
     }
 }
@@ -262,9 +218,10 @@ fun initWindow(title: String): GlfwWindow {
     with(glfw) {
         init()
         windowHint {
-            context.version = "4.5"
+            context.version = "3.3"
             profile = "core"
             forwardComp = true
+            debug = true
         }
     }
     return GlfwWindow(windowSize, title).apply {
