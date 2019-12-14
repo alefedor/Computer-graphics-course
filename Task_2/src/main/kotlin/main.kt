@@ -220,7 +220,7 @@ fun initWindow(title: String): GlfwWindow {
         init()
         windowHint {
             context.version = "3.3"
-            profile = "core"
+            profile = "compat"
             forwardComp = true
             debug = true
         }
