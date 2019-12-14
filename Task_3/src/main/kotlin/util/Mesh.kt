@@ -128,7 +128,7 @@ class GroundMesh(scale: Float) : Mesh(
 
         glGenTextures(diffuseMap)
         glBindTexture(GL_TEXTURE_2D, diffuseMap!!)
-        glTexImage2D(GL_RGB, 2, 2, GL_RGB, GL_UNSIGNED_BYTE, byteArrayOf(99, 50, 47, 59, 32, 41, 138.toByte(), 64, 29, 38, 117, 74, 85).toBuf())
+        glTexImage2D(GL_RGB, 1, 1, GL_RGB, GL_UNSIGNED_BYTE, byteArrayOf(75, 105, 60, 75, 105, 60, 75, 105, 60, 75, 105, 60).toBuf())
         glGenerateMipmap(GL_TEXTURE_2D)
 
         glGenTextures(specularMap)
