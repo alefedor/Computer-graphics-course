@@ -101,7 +101,7 @@ private class ModelDrawing {
                 }
                 scrollCallback = { offset ->
                     fov -= offset.y.f
-                    fov = glm.clamp(fov, 2f, 70f)
+                    fov = glm.clamp(fov, 2f, 90f)
                 }
 
                 mouseButtonCallback = { button, action, _ ->
@@ -200,7 +200,7 @@ private class ModelDrawing {
         Mat4()
             .translate(0.4f, -0.4f, 0.3f)
             .rotate(-90f.rad, 0f, 1f, 0f)
-            .scale(0.2f) to program.model
+            .scale(0.1f) to program.model
 
         cyborgModel.draw()
 
