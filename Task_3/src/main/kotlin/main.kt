@@ -28,6 +28,10 @@ import uno.glsl.glDeleteProgram
 import util.Model
 import kotlin.math.*
 import org.lwjgl.opengl.*
+import org.lwjgl.opengl.GL13.GL_TEXTURE0
+import org.lwjgl.opengl.GL13.glActiveTexture
+import org.lwjgl.opengl.GL30.*
+import uno.buffer.intBufferBig
 import util.GroundMesh
 
 fun main() {
@@ -38,12 +42,14 @@ fun main() {
 }
 
 val windowSize = Vec2i(1280, 720)
+val shadowMapSize = Vec2i(1024, 1024)
 val clearColor = Vec4(44 / 255f, 40 / 255f, 64 / 255f, 1f)
 
 private class ModelDrawing {
     val window: GlfwWindow = initWindow("Model 3D")
 
-    val program = ModelDrawingProgram()
+    val mainProgram = ModelDrawingProgram()
+    val shadowProgram = ShadowDepthProgram()
 
     var yaw = -90f
     var pitch = 0f
@@ -56,7 +62,7 @@ private class ModelDrawing {
     ).normalizeAssign()
     val cameraUp = Vec3(0f, 1f, 0f)
     val cyborgModel: Model = Model("cyborg/cyborg.obj")
-    val groundModel: Model = Model(GroundMesh(3.0f))
+    val groundModel: Model = Model(GroundMesh(5.0f))
 
     private var dragPosition = Vec2d()
     private var inDrag = false
@@ -65,6 +71,9 @@ private class ModelDrawing {
 
     private var showOverlay = true
     private var inChildWindow: (Vec2d) -> Boolean = { false }
+
+    private var depthMapBuffer = intBufferBig(1)
+    private var depthMap = intBufferBig(1)
 
     init {
         GLUtil.setupDebugMessageCallback()
@@ -112,6 +121,21 @@ private class ModelDrawing {
         }
 
         LwjglGL3.init(window, false)
+
+        glGenFramebuffers(depthMapBuffer)
+        glGenTextures(depthMap)
+        glBindTexture(GL_TEXTURE_2D, depthMap[0])
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, shadowMapSize.x, shadowMapSize.y, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+
+        glBindFramebuffer(GL_FRAMEBUFFER, depthMapBuffer[0])
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthMap[0], 0)
+        glDrawBuffer(GL_NONE);
+        glReadBuffer(GL_NONE);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0)
     }
 
     fun run() {
@@ -134,47 +158,97 @@ private class ModelDrawing {
                 }
             }
             glClearColor(clearColor)
+
+            glUseProgram(shadowProgram)
+            initializeProgramBase(shadowProgram)
+
+            glViewport(0, 0, shadowMapSize.x, shadowMapSize.y)
+            glBindFramebuffer(GL_FRAMEBUFFER, depthMapBuffer[0])
+            glClear( GL_DEPTH_BUFFER_BIT)
+            renderScene(shadowProgram)
+            glBindFramebuffer(GL_FRAMEBUFFER, 0)
+
+            glUseProgram(mainProgram)
+            initializeMainProgram()
+
+            glViewport(window.size)
             glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
+            glActiveTexture(GL_TEXTURE0 + 2)
+            glBindTexture(GL_TEXTURE_2D, depthMap[0])
+            renderScene(mainProgram)
 
-            glUseProgram(program)
-            glm.perspective(fov.rad, window.aspect, 0.1f, 100f) to program.projection
-            glm.lookAt(-cameraFront, Vec3(), cameraUp) to program.view
-            (-cameraFront) to program.cameraPosition
-
-            val modelMatrix = Mat4()
-                .translate(0f, -0.4f, 0f)
-                .scale(0.2f)
-            modelMatrix to program.model
-
-            // circle, 45 degrees
-            Vec3(cos( lightAngle.rad), 1, sin(lightAngle.rad)) to program.lightPosition
-
-            Vec3(0.2f, 0.2f, 0.2f) to program.lightAmbient
-            Vec3(0.6f, 0.6f, 0.6f) to program.lightDiffuse
-            Vec3(1.0f, 1.0f, 1.0f) to program.lightSpecular
-
-            cyborgModel.draw()
-            groundModel.draw()
             ImGui.render()
             window.swapBuffers()
             glfw.pollEvents()
         }
     }
 
+    fun renderScene(program: ProgramBase) {
+        Mat4()
+            .translate(0f, -0.4f, 0f)
+            .scale(0.2f) to program.model
+
+        cyborgModel.draw()
+
+        Mat4()
+            .translate(-0.5f, -0.4f, -0.1f)
+            .rotate(45f.rad, 0f, 1f, 0f)
+            .scale(0.2f) to program.model
+
+        cyborgModel.draw()
+
+        Mat4()
+            .translate(0.4f, -0.4f, 0.3f)
+            .rotate(-90f.rad, 0f, 1f, 0f)
+            .scale(0.2f) to program.model
+
+        cyborgModel.draw()
+
+
+        Mat4()
+            .translate(0f, -0.4f, 0f)
+            .scale(0.2f) to program.model
+        groundModel.draw()
+    }
+
+    fun initializeMainProgram() {
+        initializeProgramBase(mainProgram)
+        glm.perspective(fov.rad, window.aspect, 0.1f, 100f) to mainProgram.projection
+        glm.lookAt(-cameraFront, Vec3(), cameraUp) to mainProgram.view
+        (-cameraFront) to mainProgram.cameraPosition
+
+        Vec3(cos( lightAngle.rad), 1, sin(lightAngle.rad)) to mainProgram.lightPosition
+
+        Vec3(0.2f, 0.2f, 0.2f) to mainProgram.lightAmbient
+        Vec3(0.6f, 0.6f, 0.6f) to mainProgram.lightDiffuse
+        Vec3(1.0f, 1.0f, 1.0f) to mainProgram.lightSpecular
+    }
+
+    fun initializeProgramBase(program: ProgramBase) {
+        val lightPos = Vec3(cos( lightAngle.rad), 1, sin(lightAngle.rad))
+        glm.ortho(-1.0f, 1.0f, -1.0f, 1.0f, 0.5f, 6.0f)to program.lightProjection
+        glm.lookAt(lightPos, Vec3(0.0f), cameraUp) to program.lightView
+    }
+
     fun end() {
         LwjglGL3.shutdown()
-        glDeleteProgram(program)
+        glDeleteProgram(mainProgram)
         cyborgModel.dispose()
         groundModel.dispose()
         window.destroy()
         glfw.terminate()
     }
 
-    private inner class ModelDrawingProgram : Program("shaders/", "model.vert", "model.frag") {
-
+    private abstract inner class ProgramBase(path: String, vert: String, frag: String) : Program(path, vert, frag) {
         val model = glGetUniformLocation(name, "model")
+        val lightView = glGetUniformLocation(name, "lightView")
+        val lightProjection = glGetUniformLocation(name, "lightProjection")
+    }
+
+    private inner class ModelDrawingProgram : ProgramBase("shaders/", "model.vert", "model.frag") {
         val view = glGetUniformLocation(name, "view")
         val projection = glGetUniformLocation(name, "projection")
+
         val cameraPosition = glGetUniformLocation(name, "cameraPosition")
 
         val lightPosition = glGetUniformLocation(name, "lightPosition")
@@ -186,10 +260,12 @@ private class ModelDrawing {
             usingProgram(name) {
                 "texture_diffuse".unit = semantic.sampler.DIFFUSE
                 "texture_specular".unit = semantic.sampler.SPECULAR
-                "texture_dissolve".unit = 2
+                "depth_map".unit = 2
             }
         }
     }
+
+    private inner class ShadowDepthProgram : ProgramBase("shaders/", "shadow.vert", "shadow.frag")
 }
 
 fun initWindow(title: String): GlfwWindow {
