@@ -81,6 +81,7 @@ private class ModelDrawing {
     private var biasType: Int = 2
     private var cullFrontFaces: Boolean = true
     private var tuneIndividually: Boolean = true
+    private var averageShadows: Boolean = true
 
     init {
         // uncomment this line to add debug output
@@ -162,6 +163,7 @@ private class ModelDrawing {
                     combo("Depth bias", ::biasType, listOf("No", "Const", "Robust"))
                     checkbox("Cull front faces for shadows", ::cullFrontFaces)
                     checkbox("Tune individually", ::tuneIndividually)
+                    checkbox("Soften shadows", ::averageShadows)
                 }
                 val child = findWindowByName("Overlay")!!
                 inChildWindow = {
@@ -260,6 +262,7 @@ private class ModelDrawing {
         Vec3(0.6f, 0.6f, 0.6f) to mainProgram.lightDiffuse
         Vec3(1.0f, 1.0f, 1.0f) to mainProgram.lightSpecular
         biasType to mainProgram.biasType
+        (if (averageShadows) 1 else 0) to mainProgram.averageShadows
     }
 
     fun initializeProgramBase(program: ProgramBase) {
