@@ -28,9 +28,9 @@ float calculateShadow(vec4 fragPos, vec3 normal) {
     float currentDepth = coords.z;
     float bias = 0.0f;
     if (biasType == 1)
-        bias = 0.001f;
+        bias = 0.003f;
     if (biasType == 2)
-        bias = max(0.05 * (1.0 - dot(normal, lightPosition)), 0.005);
+        bias = max(0.03 * (1.0 - dot(normal, lightPosition)), 0.003);
     return currentDepth > closestDepth + bias ? 1.0 : 0.0;
 }
 
