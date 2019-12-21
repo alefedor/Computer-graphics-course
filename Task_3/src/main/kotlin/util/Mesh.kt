@@ -1,7 +1,10 @@
 package util
 
 
-import assimp.*
+import assimp.AiMaterial
+import assimp.AiMesh
+import assimp.AiScene
+import assimp.AiTexture
 import glm_.set
 import glm_.vec3.Vec3
 import gln.draw.glDrawElements
@@ -90,7 +93,12 @@ abstract class Mesh(meshVertices: List<Vec3>, meshNormals: List<Vec3>, meshTextu
     }
 }
 
-class ModelMesh(mesh: AiMesh, scene: AiScene) : Mesh(mesh.vertices, mesh.normals, mesh.textureCoords[0], mesh.faces) {
+class ModelMesh(mesh: AiMesh, scene: AiScene) : Mesh(
+    mesh.vertices,
+    mesh.normals,
+    calculateTextureCoords(mesh.textureCoords, mesh.vertices.size),
+    mesh.faces
+) {
     init {
         with(scene.materials[mesh.materialIndex]) {
             textures.firstOrNull { it.type == AiTexture.Type.diffuse }?.let {
@@ -102,7 +110,7 @@ class ModelMesh(mesh: AiMesh, scene: AiScene) : Mesh(mesh.vertices, mesh.normals
         }
     }
 
-    fun loadMaterialTexture(texture: AiMaterial.Texture, scene: AiScene) = initTexture2d {
+    private fun loadMaterialTexture(texture: AiMaterial.Texture, scene: AiScene) = initTexture2d {
         val gliTexture = scene.textures[texture.file]!!
         image(gliTexture)
         glGenerateMipmap(GL_TEXTURE_2D)
@@ -110,6 +118,13 @@ class ModelMesh(mesh: AiMesh, scene: AiScene) : Mesh(mesh.vertices, mesh.normals
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+    }
+
+    companion object {
+        fun calculateTextureCoords(coords: List<List<FloatArray>>, vertices: Int): List<FloatArray> {
+            if (coords.isNotEmpty()) return coords[0]
+            return List(vertices) { FloatArray(2) { 0.0f } }
+        }
     }
 }
 
@@ -135,5 +150,84 @@ class GroundMesh(scale: Float) : Mesh(
         glBindTexture(GL_TEXTURE_2D, specularMap!!)
         glTexImage2D(GL_RGB, 1, 1, GL_RGB, GL_UNSIGNED_BYTE, byteArrayOf(0, 0, 0).toBuf())
         glGenerateMipmap(GL_TEXTURE_2D)
+    }
+}
+
+class CubeMesh() : Mesh(
+    vertices,
+    normals,
+    textureCoords,
+    faces
+) {
+    init {
+        diffuseMap = intBufferBig(1)
+        specularMap = intBufferBig(1)
+
+        glGenTextures(diffuseMap)
+        glBindTexture(GL_TEXTURE_2D, diffuseMap!!)
+        glTexImage2D(GL_RGB, 1, 1, GL_RGB, GL_UNSIGNED_BYTE, byteArrayOf(189.toByte(), 189.toByte(), 189.toByte(), 189.toByte(), 189.toByte(), 189.toByte(), 189.toByte(), 189.toByte(), 189.toByte(), 189.toByte(), 189.toByte(), 189.toByte()).toBuf())
+        glGenerateMipmap(GL_TEXTURE_2D)
+
+        glGenTextures(specularMap)
+        glBindTexture(GL_TEXTURE_2D, specularMap!!)
+        glTexImage2D(GL_RGB, 1, 1, GL_RGB, GL_UNSIGNED_BYTE, byteArrayOf(0, 0, 0).toBuf())
+        glGenerateMipmap(GL_TEXTURE_2D)
+    }
+
+    companion object {
+        val vertices: MutableList<Vec3> = mutableListOf()
+        val normals: MutableList<Vec3> = mutableListOf()
+
+        val faces: MutableList<List<Int>> = mutableListOf()
+        val textureCoords: MutableList<FloatArray> = mutableListOf()
+
+        val data = floatArrayOf(
+            -0.5f, -0.5f, -0.5f, 0.0f, 0.0f, -1.0f,
+            0.5f, -0.5f, -0.5f, 0.0f, 0.0f, -1.0f,
+            0.5f, 0.5f, -0.5f, 0.0f, 0.0f, -1.0f,
+            0.5f, 0.5f, -0.5f, 0.0f, 0.0f, -1.0f,
+            -0.5f, 0.5f, -0.5f, 0.0f, 0.0f, -1.0f,
+            -0.5f, -0.5f, -0.5f, 0.0f, 0.0f, -1.0f,
+            -0.5f, -0.5f, 0.5f, 0.0f, 0.0f, 1.0f,
+            0.5f, -0.5f, 0.5f, 0.0f, 0.0f, 1.0f,
+            0.5f, 0.5f, 0.5f, 0.0f, 0.0f, 1.0f,
+            0.5f, 0.5f, 0.5f, 0.0f, 0.0f, 1.0f,
+            -0.5f, 0.5f, 0.5f, 0.0f, 0.0f, 1.0f,
+            -0.5f, -0.5f, 0.5f, 0.0f, 0.0f, 1.0f,
+            -0.5f, 0.5f, 0.5f, -1.0f, 0.0f, 0.0f,
+            -0.5f, 0.5f, -0.5f, -1.0f, 0.0f, 0.0f,
+            -0.5f, -0.5f, -0.5f, -1.0f, 0.0f, 0.0f,
+            -0.5f, -0.5f, -0.5f, -1.0f, 0.0f, 0.0f,
+            -0.5f, -0.5f, 0.5f, -1.0f, 0.0f, 0.0f,
+            -0.5f, 0.5f, 0.5f, -1.0f, 0.0f, 0.0f,
+            0.5f, 0.5f, 0.5f, 1.0f, 0.0f, 0.0f,
+            0.5f, 0.5f, -0.5f, 1.0f, 0.0f, 0.0f,
+            0.5f, -0.5f, -0.5f, 1.0f, 0.0f, 0.0f,
+            0.5f, -0.5f, -0.5f, 1.0f, 0.0f, 0.0f,
+            0.5f, -0.5f, 0.5f, 1.0f, 0.0f, 0.0f,
+            0.5f, 0.5f, 0.5f, 1.0f, 0.0f, 0.0f,
+            -0.5f, -0.5f, -0.5f, 0.0f, -1.0f, 0.0f,
+            0.5f, -0.5f, -0.5f, 0.0f, -1.0f, 0.0f,
+            0.5f, -0.5f, 0.5f, 0.0f, -1.0f, 0.0f,
+            0.5f, -0.5f, 0.5f, 0.0f, -1.0f, 0.0f,
+            -0.5f, -0.5f, 0.5f, 0.0f, -1.0f, 0.0f,
+            -0.5f, -0.5f, -0.5f, 0.0f, -1.0f, 0.0f,
+            -0.5f, 0.5f, -0.5f, 0.0f, 1.0f, 0.0f,
+            0.5f, 0.5f, -0.5f, 0.0f, 1.0f, 0.0f,
+            0.5f, 0.5f, 0.5f, 0.0f, 1.0f, 0.0f,
+            0.5f, 0.5f, 0.5f, 0.0f, 1.0f, 0.0f,
+            -0.5f, 0.5f, 0.5f, 0.0f, 1.0f, 0.0f,
+            -0.5f, 0.5f, -0.5f, 0.0f, 1.0f, 0.0f
+        )
+
+        init {
+            for (i in 0 until data.size step 6) {
+                vertices.add(Vec3(data[i], data[i + 1], data[i + 2]))
+                normals.add(Vec3(data[i + 3], data[i + 4], data[i + 5]))
+                textureCoords.add(floatArrayOf(0.0f, 0.0f))
+            }
+            for (i in 0 until data.size / 18)
+                faces.add(listOf(3 * i, 3 * i + 1, 3 * i + 2))
+        }
     }
 }

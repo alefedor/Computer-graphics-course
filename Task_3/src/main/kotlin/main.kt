@@ -32,6 +32,7 @@ import org.lwjgl.opengl.GL13.GL_TEXTURE0
 import org.lwjgl.opengl.GL13.glActiveTexture
 import org.lwjgl.opengl.GL30.*
 import uno.buffer.intBufferBig
+import util.CubeMesh
 import util.GroundMesh
 
 fun main() {
@@ -43,7 +44,7 @@ fun main() {
 
 val windowSize = Vec2i(1280, 720)
 val shadowMapSize = Vec2i(1024, 1024)
-val clearColor = Vec4(44 / 255f, 40 / 255f, 64 / 255f, 1f)
+val clearColor = Vec4(8 / 255f, 29 / 255f, 88 / 255f, 1f)
 
 private class ModelDrawing {
     val window: GlfwWindow = initWindow("Model 3D")
@@ -63,6 +64,7 @@ private class ModelDrawing {
     val cameraUp = Vec3(0f, 1f, 0f)
     val cyborgModel: Model = Model("cyborg/cyborg.obj")
     val groundModel: Model = Model(GroundMesh(5.0f))
+    val cubeModel: Model = Model(CubeMesh())
 
     private var dragPosition = Vec2d()
     private var inDrag = false
@@ -195,7 +197,7 @@ private class ModelDrawing {
             .rotate(45f.rad, 0f, 1f, 0f)
             .scale(0.2f) to program.model
 
-        cyborgModel.draw()
+        cubeModel.draw()
 
         Mat4()
             .translate(0.4f, -0.4f, 0.3f)
@@ -255,6 +257,7 @@ private class ModelDrawing {
         val lightAmbient = glGetUniformLocation(name, "ambient")
         val lightDiffuse = glGetUniformLocation(name, "diffuse")
         val lightSpecular = glGetUniformLocation(name, "specular")
+        val biasType = glGetUniformLocation(name, "biasType")
 
         init {
             usingProgram(name) {

@@ -19,14 +19,19 @@ uniform vec3 specular;
 uniform vec3 cameraPosition;
 uniform vec3 lightPosition;
 
+uniform int biasType;
 
-float calculateShadow(vec4 fragPos) {
+float calculateShadow(vec4 fragPos, vec3 normal) {
     vec3 coords = fragPos.xyz / fragPos.w;
     coords = coords * 0.5 + 0.5;
     float closestDepth = texture(depth_map, coords.xy).r;
     float currentDepth = coords.z;
-    float shadow = currentDepth > closestDepth + 0.001 ? 1.0 : 0.0;
-    return shadow;
+    float bias = 0.0f;
+    if (biasType == 1)
+        bias = 0.001f;
+    if (biasType == 2)
+        bias = max(0.05 * (1.0 - dot(normal, lightPosition)), 0.005);
+    return currentDepth > closestDepth + bias ? 1.0 : 0.0;
 }
 
 void main()
@@ -48,7 +53,7 @@ void main()
     spec = spec * initial_spec;
     vec3 specularColor = specular * spec * texture(texture_specular, TexCoords).rgb;
 
-    float shadow = calculateShadow(LightFragPos);
+    float shadow = calculateShadow(LightFragPos, normal);
 
     vec3 result = ambientColor + (1.0 - shadow) * (diffuseColor + specularColor);
     FragColor = vec4(result, 1.0f);
