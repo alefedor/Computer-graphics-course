@@ -114,10 +114,10 @@ private class ModelDrawing {
                 }
 
                 mouseButtonCallback = { button, action, _ ->
-                    if (button == GLFW_MOUSE_BUTTON_LEFT && !inChildWindow(window.cursorPos)) {
+                    if (button == GLFW_MOUSE_BUTTON_LEFT) {
                         when (action) {
                             GLFW_PRESS -> {
-                                if (!inDrag) {
+                                if (!inDrag && !inChildWindow(window.cursorPos)) {
                                     inDrag = true
                                     dragPosition = Vec2d(window.cursorPos)
                                 }
@@ -279,8 +279,8 @@ private class ModelDrawing {
     fun applyBias() {
         when (biasType) {
             0 -> glPolygonOffset(0.0f, 0.0f)
-            1 -> glPolygonOffset(0.0f, 40000.0f)
-            2 -> glPolygonOffset(2.0f, 40000.0f)
+            1 -> glPolygonOffset(0.0f, 23000.0f)
+            2 -> glPolygonOffset(1.0f, 23000.0f)
         }
     }
 

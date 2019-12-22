@@ -129,7 +129,7 @@ class ModelMesh(mesh: AiMesh, scene: AiScene) : Mesh(
 }
 
 class GroundMesh(scale: Float) : Mesh(
-    listOf(Vec3(-1f, -0.0001f, -1f) * scale, Vec3(-1f, -0.0001f, 1f) * scale, Vec3(1f, -0.0001f, -1f) * scale, Vec3(1f, -0.0001f, 1f) * scale),
+    listOf(Vec3(-1f, -0.0005f, -1f) * scale, Vec3(-1f, -0.0005f, 1f) * scale, Vec3(1f, -0.0005f, -1f) * scale, Vec3(1f, -0.0005f, 1f) * scale),
     listOf(Vec3(0f, 1f, 0f), Vec3(0f, 1f, 0f), Vec3(0f, 1f, 0f), Vec3(0f, 1f, 0f)),
     listOf(floatArrayOf(0.0f, 0.0f), floatArrayOf(0.0f, 1.0f), floatArrayOf(1.0f, 0.0f), floatArrayOf(1.0f, 1.0f)),
     listOf(
