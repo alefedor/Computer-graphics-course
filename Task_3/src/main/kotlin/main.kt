@@ -150,6 +150,9 @@ private class ModelDrawing {
 
     fun run() {
         glEnable(GL_DEPTH_TEST)
+        glEnable(GL_POLYGON_OFFSET_FILL)
+        glEnable(GL_POLYGON_OFFSET_LINE)
+        glEnable(GL_POLYGON_OFFSET_POINT)
 
         while (window.open) {
             window.processInput()
@@ -172,7 +175,6 @@ private class ModelDrawing {
                 }
             }
             glClearColor(clearColor)
-
             glUseProgram(shadowProgram)
             initializeProgramBase(shadowProgram)
 
@@ -184,9 +186,8 @@ private class ModelDrawing {
             } else {
                 glCullFace(GL_BACK)
             }
-            renderScene(shadowProgram)
+            renderScene(shadowProgram, true)
             glBindFramebuffer(GL_FRAMEBUFFER, 0)
-
             glUseProgram(mainProgram)
             initializeMainProgram()
 
@@ -203,11 +204,14 @@ private class ModelDrawing {
         }
     }
 
-    fun renderScene(program: ProgramBase) {
+    fun renderScene(program: ProgramBase, isShadow: Boolean = false) {
         glEnable(GL_CULL_FACE)
 
-        if (tuneIndividually && program == mainProgram)
-            0 to mainProgram.biasType
+        glPolygonOffset(0.0f, 0.0f)
+
+        if (isShadow && !tuneIndividually) {
+            applyBias()
+        }
 
         Mat4()
             .translate(-0.5f, -0.3f, -0.1f)
@@ -223,10 +227,11 @@ private class ModelDrawing {
 
         cubeModel.draw()
 
-        if (tuneIndividually) {
+        if (tuneIndividually)
             glDisable(GL_CULL_FACE)
-            if (program == mainProgram)
-                biasType to mainProgram.biasType
+
+        if (isShadow) {
+            applyBias()
         }
 
         Mat4()
@@ -235,14 +240,15 @@ private class ModelDrawing {
 
         cyborgModel.draw()
 
-        if (tuneIndividually) {
-            glEnable(GL_CULL_FACE)
-            if (program == mainProgram)
-                0 to mainProgram.biasType
-        }
+        glPolygonOffset(0.0f, 0.0f)
 
-        if (program == mainProgram)
+        if (isShadow && !tuneIndividually)
+            applyBias()
+
+        if (!isShadow)
             glDisable(GL_CULL_FACE)
+        else
+            glEnable(GL_CULL_FACE)
 
         Mat4()
             .translate(0f, -0.4f, 0f)
@@ -252,7 +258,7 @@ private class ModelDrawing {
 
     fun initializeMainProgram() {
         initializeProgramBase(mainProgram)
-        glm.perspective(fov.rad, window.aspect, 0.1f, 100f) to mainProgram.projection
+        glm.perspective(fov.rad, window.aspect, 0.2f, 3f) to mainProgram.projection
         glm.lookAt(-cameraFront, Vec3(), cameraUp) to mainProgram.view
         (-cameraFront) to mainProgram.cameraPosition
 
@@ -261,7 +267,6 @@ private class ModelDrawing {
         Vec3(0.2f, 0.2f, 0.2f) to mainProgram.lightAmbient
         Vec3(0.6f, 0.6f, 0.6f) to mainProgram.lightDiffuse
         Vec3(1.0f, 1.0f, 1.0f) to mainProgram.lightSpecular
-        biasType to mainProgram.biasType
         (if (averageShadows) 1 else 0) to mainProgram.averageShadows
     }
 
@@ -269,6 +274,14 @@ private class ModelDrawing {
         val lightPos = Vec3(cos( lightAngle.rad), 1, sin(lightAngle.rad))
         glm.ortho(-1.3f, 1.3f, -1.3f, 1.3f, 0.5f, 6.0f)to program.lightProjection
         glm.lookAt(lightPos, Vec3(0.0f), cameraUp) to program.lightView
+    }
+
+    fun applyBias() {
+        when (biasType) {
+            0 -> glPolygonOffset(0.0f, 0.0f)
+            1 -> glPolygonOffset(0.0f, 40000.0f)
+            2 -> glPolygonOffset(2.0f, 40000.0f)
+        }
     }
 
     fun end() {
@@ -296,7 +309,6 @@ private class ModelDrawing {
         val lightAmbient = glGetUniformLocation(name, "ambient")
         val lightDiffuse = glGetUniformLocation(name, "diffuse")
         val lightSpecular = glGetUniformLocation(name, "specular")
-        val biasType = glGetUniformLocation(name, "biasType")
         val averageShadows = glGetUniformLocation(name, "averageShadows")
 
         init {

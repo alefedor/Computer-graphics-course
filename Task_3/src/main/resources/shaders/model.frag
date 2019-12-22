@@ -19,7 +19,6 @@ uniform vec3 specular;
 uniform vec3 cameraPosition;
 uniform vec3 lightPosition;
 
-uniform int biasType;
 uniform int averageShadows;
 
 float calculateShadow(vec4 fragPos, vec3 normal) {
@@ -30,12 +29,6 @@ float calculateShadow(vec4 fragPos, vec3 normal) {
         return 0.0f;
 
     float currentDepth = coords.z;
-    float bias = 0.0f;
-    if (biasType == 1)
-        bias = 0.003f;
-    if (biasType == 2)
-        bias = max(0.03 * (1.0 - dot(normal, lightPosition)), 0.003);
-
 
     int neighbourhood = 5 * averageShadows;
     int neighbourhoodSize = (1 + 2 * neighbourhood) * (1 + 2 * neighbourhood);
@@ -46,7 +39,7 @@ float calculateShadow(vec4 fragPos, vec3 normal) {
     for (int x = -neighbourhood; x <= neighbourhood; x++)
         for (int y = -neighbourhood; y <= neighbourhood; y++) {
             float closestDepth = texture(depth_map, coords.xy + vec2(x, y) * pixelSize * 0.2).r;
-            shadow += currentDepth > closestDepth + bias ? (1.0 / neighbourhoodSize) : 0.0;
+            shadow += currentDepth > closestDepth ? (1.0 / neighbourhoodSize) : 0.0;
         }
 
     return shadow;
