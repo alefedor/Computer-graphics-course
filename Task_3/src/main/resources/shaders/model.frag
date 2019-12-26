@@ -1,15 +1,27 @@
 #version 330 core
 
+const int CASCADES = 4;
+const int TOTAL = CASCADES + 1;
+
 layout (location = 0) out vec4 FragColor;
 
 in vec3 FragPos;
 in vec3 Normal;
 in vec2 TexCoords;
-in vec4 LightFragPos;
+in vec4 LightFragPos[TOTAL];
 
 uniform sampler2D texture_diffuse;
 uniform sampler2D texture_specular;
-uniform sampler2D depth_map;
+uniform sampler2D depth_map0;
+uniform sampler2D depth_map1;
+uniform sampler2D depth_map2;
+uniform sampler2D depth_map3;
+uniform sampler2D depth_map4;
+
+uniform float cascade_end0;
+uniform float cascade_end1;
+uniform float cascade_end2;
+uniform float cascade_end3;
 
 
 uniform vec3 ambient;
@@ -19,30 +31,48 @@ uniform vec3 specular;
 uniform vec3 cameraPosition;
 uniform vec3 lightPosition;
 
-uniform int averageShadows;
+uniform int useCascades;
 
-float calculateShadow(vec4 fragPos, vec3 normal) {
-    vec3 coords = fragPos.xyz / fragPos.w;
-    coords = coords * 0.5 + 0.5;
+float get_texture(int cascade, vec2 v) {
+    float ans = 0.0f;
+    if (cascade == 0)
+        ans = texture(depth_map0, v).r;
+    if (cascade == 1)
+        ans = texture(depth_map1, v).r;
+    if (cascade == 2)
+        ans = texture(depth_map2, v).r;
+    if (cascade == 3)
+        ans = texture(depth_map3, v).r;
+    if (cascade == 4)
+        ans = texture(depth_map4, v).r;
+    return ans;
+}
 
-    if (coords.z > 1.0)
-        return 0.0f;
-
+float calculateShadow(vec3 coords, int cascade) {
     float currentDepth = coords.z;
 
-    int neighbourhood = 5 * averageShadows;
+    int neighbourhood = 0;
     int neighbourhoodSize = (1 + 2 * neighbourhood) * (1 + 2 * neighbourhood);
 
-    vec2 pixelSize = 1.0 / textureSize(depth_map, 0);
+    vec2 pixelSize = 1.0 / textureSize(depth_map0, 0);
     float shadow = 0.0;
 
     for (int x = -neighbourhood; x <= neighbourhood; x++)
         for (int y = -neighbourhood; y <= neighbourhood; y++) {
-            float closestDepth = texture(depth_map, coords.xy + vec2(x, y) * pixelSize * 0.2).r;
+            float closestDepth = get_texture(cascade, coords.xy + vec2(x, y) * pixelSize * 0.2);
             shadow += currentDepth > closestDepth ? (1.0 / neighbourhoodSize) : 0.0;
         }
 
     return shadow;
+}
+
+float calculateShadow(vec4 FragPos, int cascade) {
+    vec3 coords = FragPos.xyz / FragPos.w;
+    coords = coords * 0.5 + 0.5;
+
+    if (coords.z > 1.0) return 0.0f;
+
+    return calculateShadow(coords, cascade);
 }
 
 void main()
@@ -63,8 +93,20 @@ void main()
         spec = spec * spec;
     spec = spec * initial_spec;
     vec3 specularColor = specular * spec * texture(texture_specular, TexCoords).rgb;
+    float shadow = 0;
+    if (useCascades == 0) {
+        shadow = calculateShadow(LightFragPos[CASCADES], CASCADES);
+    } else {
+        for (int i = 0; i < CASCADES; i++) {
+            vec3 coords = LightFragPos[i].xyz / LightFragPos[i].w;
+            coords = coords * 0.5 + 0.5;
 
-    float shadow = calculateShadow(LightFragPos, normal);
+            if (coords.z > 1.0 - 1e-2 || coords.x > 1.0 - 1e-2 || coords.y > 1.0 - 1e-2 || coords.x < 0.0 + 1e-2 || coords.y < 0.0 + 1e-2) continue;
+
+            shadow = calculateShadow(coords, i);
+            break;
+        }
+    }
 
     vec3 result = ambientColor + (1.0 - shadow) * (diffuseColor + specularColor);
     FragColor = vec4(result, 1.0f);

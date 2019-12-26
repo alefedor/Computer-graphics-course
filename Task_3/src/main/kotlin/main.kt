@@ -1,4 +1,5 @@
 import glm_.f
+import glm_.func.common.clamp
 import glm_.func.rad
 import glm_.glm
 import glm_.mat4x4.Mat4
@@ -33,8 +34,7 @@ import uno.glsl.glUseProgram
 import util.CubeMesh
 import util.GroundMesh
 import util.Model
-import kotlin.math.cos
-import kotlin.math.sin
+import kotlin.math.*
 
 fun main() {
     with(ModelDrawing()) {
@@ -48,6 +48,10 @@ val shadowMapSize = Vec2i(1024, 1024)
 val clearColor = Vec4(8 / 255f, 29 / 255f, 88 / 255f, 1f)
 
 private class ModelDrawing {
+    companion object {
+        private val cascades = 4
+    }
+
     val window: GlfwWindow = initWindow("Model 3D")
 
     val mainProgram = ModelDrawingProgram()
@@ -75,13 +79,11 @@ private class ModelDrawing {
     private var showOverlay = true
     private var inChildWindow: (Vec2d) -> Boolean = { false }
 
-    private var depthMapBuffer = intBufferBig(1)
-    private var depthMap = intBufferBig(1)
-
-    private var biasType: Int = 2
-    private var cullFrontFaces: Boolean = true
-    private var tuneIndividually: Boolean = true
-    private var averageShadows: Boolean = true
+    private var depthMapBuffer = Array(cascades + 1) { intBufferBig(1) }
+    private var depthMap = Array(cascades + 1) { intBufferBig(1) }
+    private val shadowProjections = Array(cascades + 1) { Mat4() }
+    private val cascadeEnds = floatArrayOf(0.2f, 0.5f, 1f, 2f, 3f)
+    private var useCascades: Boolean = true
 
     init {
         // uncomment this line to add debug output
@@ -131,20 +133,32 @@ private class ModelDrawing {
 
         LwjglGL3.init(window, false)
 
-        glGenFramebuffers(depthMapBuffer)
-        glGenTextures(depthMap)
-        glBindTexture(GL_TEXTURE_2D, depthMap[0])
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, shadowMapSize.x, shadowMapSize.y, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL13.GL_CLAMP_TO_BORDER)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL13.GL_CLAMP_TO_BORDER)
-        glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, floatArrayOf(1.0f, 1.0f, 1.0f, 1.0f))
+        repeat(cascades + 1) {
+            glGenFramebuffers(depthMapBuffer[it])
+            glGenTextures(depthMap[it])
+            glBindTexture(GL_TEXTURE_2D, depthMap[it][0])
+            glTexImage2D(
+                GL_TEXTURE_2D,
+                0,
+                GL_DEPTH_COMPONENT,
+                shadowMapSize.x,
+                shadowMapSize.y,
+                0,
+                GL_DEPTH_COMPONENT,
+                GL_FLOAT,
+                0
+            )
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL13.GL_CLAMP_TO_BORDER)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL13.GL_CLAMP_TO_BORDER)
+            glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, floatArrayOf(1.0f, 1.0f, 1.0f, 1.0f))
 
-        glBindFramebuffer(GL_FRAMEBUFFER, depthMapBuffer[0])
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthMap[0], 0)
-        glDrawBuffer(GL_NONE);
-        glReadBuffer(GL_NONE);
+            glBindFramebuffer(GL_FRAMEBUFFER, depthMapBuffer[it][0])
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthMap[it][0], 0)
+            glDrawBuffer(GL_NONE);
+            glReadBuffer(GL_NONE);
+        }
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
     }
 
@@ -163,10 +177,7 @@ private class ModelDrawing {
                 setNextWindowPos(Vec2(10))
                 withWindow("Overlay", ::showOverlay, WindowFlags.NoTitleBar or WindowFlags.NoResize or WindowFlags.AlwaysAutoResize or WindowFlags.NoMove or WindowFlags.NoSavedSettings) {
                     sliderFloat("light position", ::lightAngle, 0.0f, 360f)
-                    combo("Depth bias", ::biasType, listOf("No", "Const", "Robust"))
-                    checkbox("Cull front faces for shadows", ::cullFrontFaces)
-                    checkbox("Tune individually", ::tuneIndividually)
-                    checkbox("Soften shadows", ::averageShadows)
+                    checkbox("Use cascades", ::useCascades)
                 }
                 val child = findWindowByName("Overlay")!!
                 inChildWindow = {
@@ -175,27 +186,36 @@ private class ModelDrawing {
                 }
             }
             glClearColor(clearColor)
-            glUseProgram(shadowProgram)
-            initializeProgramBase(shadowProgram)
 
-            glViewport(0, 0, shadowMapSize.x, shadowMapSize.y)
-            glBindFramebuffer(GL_FRAMEBUFFER, depthMapBuffer[0])
-            glClear( GL_DEPTH_BUFFER_BIT)
-            if (cullFrontFaces) {
+            calcShadowProjections()
+
+            repeat(cascades + 1) {
+
+                glUseProgram(shadowProgram)
+                shadowProjections[it] to shadowProgram.lightProjection
+                initializeProgramBase(shadowProgram)
+
+                glViewport(0, 0, shadowMapSize.x, shadowMapSize.y)
+                glBindFramebuffer(GL_FRAMEBUFFER, depthMapBuffer[it][0])
+                glClear(GL_DEPTH_BUFFER_BIT)
                 glCullFace(GL_FRONT)
-            } else {
-                glCullFace(GL_BACK)
+                renderScene(shadowProgram, true)
             }
-            renderScene(shadowProgram, true)
+
             glBindFramebuffer(GL_FRAMEBUFFER, 0)
             glUseProgram(mainProgram)
+            repeat(cascades + 1) {
+                shadowProjections[it] to glGetUniformLocation(mainProgram.name, "lightProjection$it")
+            }
             initializeMainProgram()
 
             glViewport(window.size)
             glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
             glCullFace(GL_BACK)
-            glActiveTexture(GL_TEXTURE0 + 2)
-            glBindTexture(GL_TEXTURE_2D, depthMap[0])
+            repeat(cascades + 1) {
+                glActiveTexture(GL_TEXTURE0 + 2 + it)
+                glBindTexture(GL_TEXTURE_2D, depthMap[it][0])
+            }
             renderScene(mainProgram)
 
             ImGui.render()
@@ -209,10 +229,6 @@ private class ModelDrawing {
 
         glPolygonOffset(0.0f, 0.0f)
 
-        if (isShadow && !tuneIndividually) {
-            applyBias()
-        }
-
         Mat4()
             .translate(-0.5f, -0.3f, -0.1f)
             .rotate(45f.rad, 0f, 1f, 0f)
@@ -222,13 +238,12 @@ private class ModelDrawing {
 
         Mat4()
             .translate(0.4f, -0.15f, 0.3f)
-            .rotate(-70f.rad, 0.5f, 1f, 1f)
+            .rotate((-70f).rad, 0.5f, 1f, 1f)
             .scale(0.1f) to program.model
 
         cubeModel.draw()
 
-        if (tuneIndividually)
-            glDisable(GL_CULL_FACE)
+        glDisable(GL_CULL_FACE)
 
         if (isShadow) {
             applyBias()
@@ -241,9 +256,6 @@ private class ModelDrawing {
         cyborgModel.draw()
 
         glPolygonOffset(0.0f, 0.0f)
-
-        if (isShadow && !tuneIndividually)
-            applyBias()
 
         if (!isShadow)
             glDisable(GL_CULL_FACE)
@@ -258,8 +270,8 @@ private class ModelDrawing {
 
     fun initializeMainProgram() {
         initializeProgramBase(mainProgram)
-        glm.perspective(fov.rad, window.aspect, 0.2f, 3f) to mainProgram.projection
-        glm.lookAt(-cameraFront, Vec3(), cameraUp) to mainProgram.view
+        calcProj(cascadeEnds.first(), cascadeEnds.last()) to mainProgram.projection
+        calcView() to mainProgram.view
         (-cameraFront) to mainProgram.cameraPosition
 
         Vec3(cos( lightAngle.rad), 1, sin(lightAngle.rad)) to mainProgram.lightPosition
@@ -267,21 +279,83 @@ private class ModelDrawing {
         Vec3(0.2f, 0.2f, 0.2f) to mainProgram.lightAmbient
         Vec3(0.6f, 0.6f, 0.6f) to mainProgram.lightDiffuse
         Vec3(1.0f, 1.0f, 1.0f) to mainProgram.lightSpecular
-        (if (averageShadows) 1 else 0) to mainProgram.averageShadows
+
+        (if (useCascades) 1 else 0) to mainProgram.useCascades
+    }
+
+    fun calcShadowProjections() {
+        val lightView = calcLightView()
+        val cameraViewInv =  calcView().inverse()
+
+        repeat(cascades) {
+            val cameraProjInv = calcProj(cascadeEnds[it], cascadeEnds[it + 1] + 0.05f).inverse()
+
+            val frustrumVertices = arrayOf(
+                Vec4(1, 1, 1, 1),
+                Vec4(1, 1, -1, 1),
+                Vec4(1, -1, 1, 1),
+                Vec4(1, -1, -1, 1),
+                Vec4(-1, 1, 1, 1),
+                Vec4(-1, 1, -1, 1),
+                Vec4(-1, -1, 1, 1),
+                Vec4(-1, -1, -1, 1)
+            )
+
+            var minX = 1e10f
+            var maxX = -1e10f
+            var minY = 1e10f
+            var maxY = -1e10f
+            var minZ = 1e10f
+            var maxZ = -1e10f
+
+            for (j in frustrumVertices.indices) {
+                var globalCoords =  cameraViewInv * cameraProjInv * frustrumVertices[j]
+                globalCoords = globalCoords / globalCoords.w
+                boundWithScene(globalCoords)
+                repeat(2) {
+                    var lightCoords = lightView * globalCoords
+                    lightCoords = lightCoords / lightCoords.w
+
+                    minX = min(minX, lightCoords.x)
+                    maxX = max(maxX, lightCoords.x)
+                    minY = min(minY, lightCoords.y)
+                    maxY = max(maxY, lightCoords.y)
+                    minZ = min(minZ, lightCoords.z)
+                    maxZ = max(maxZ, lightCoords.z)
+
+                    globalCoords = globalCoords + Vec4(lightPos(), 0.0) * 3 // stretch toward light
+                }
+            }
+
+            shadowProjections[it] = glm.ortho(minX, maxX, minY, maxY, minZ, maxZ)
+        }
+
+        shadowProjections[cascades] = glm.ortho(-1.3f, 1.3f, -1.3f, 1.3f, 0.5f, 6.0f)
+    }
+
+    fun boundWithScene(v: Vec4) {
+        v.x = v.x.clamp(-2f, 2f)
+        v.y = v.y.clamp(-1f, 1.5f)
+        v.z = v.z.clamp(-2f, 2f)
+    }
+
+    fun calcView() = glm.lookAt(-cameraFront, Vec3(), cameraUp)
+
+    fun calcProj(zNear: Float, zFar: Float) = glm.perspective(fov.rad, window.aspect, zNear, zFar)
+
+    fun lightPos() = Vec3(cos( lightAngle.rad), 1, sin(lightAngle.rad))
+
+    fun calcLightView(): Mat4 {
+        return glm.lookAt(lightPos(), Vec3(0.0f), cameraUp)
     }
 
     fun initializeProgramBase(program: ProgramBase) {
-        val lightPos = Vec3(cos( lightAngle.rad), 1, sin(lightAngle.rad))
-        glm.ortho(-1.3f, 1.3f, -1.3f, 1.3f, 0.5f, 6.0f)to program.lightProjection
-        glm.lookAt(lightPos, Vec3(0.0f), cameraUp) to program.lightView
+        //glm.ortho(-1.3f, 1.3f, -1.3f, 1.3f, 0.5f, 6.0f)to program.lightProjection
+        calcLightView() to program.lightView
     }
 
     fun applyBias() {
-        when (biasType) {
-            0 -> glPolygonOffset(0.0f, 0.0f)
-            1 -> glPolygonOffset(0.0f, 23000.0f)
-            2 -> glPolygonOffset(1.0f, 23000.0f)
-        }
+        glPolygonOffset(1.0f, 23000.0f)
     }
 
     fun end() {
@@ -309,13 +383,16 @@ private class ModelDrawing {
         val lightAmbient = glGetUniformLocation(name, "ambient")
         val lightDiffuse = glGetUniformLocation(name, "diffuse")
         val lightSpecular = glGetUniformLocation(name, "specular")
-        val averageShadows = glGetUniformLocation(name, "averageShadows")
+
+        val useCascades = glGetUniformLocation(name, "useCascades")
 
         init {
             usingProgram(name) {
                 "texture_diffuse".unit = semantic.sampler.DIFFUSE
                 "texture_specular".unit = semantic.sampler.SPECULAR
-                "depth_map".unit = 2
+                repeat(cascades + 1) {
+                    "depth_map$it".unit = 2 + it
+                }
             }
         }
     }
